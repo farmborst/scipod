@@ -1,0 +1,315 @@
+########################################
+#### Debian based Science Container ####
+########################################
+# podman cheatsheet
+# --------------------------------------
+# podman build -f Dockerfile -t sciduck:bullseye
+# podman images
+# podman run scipod:bullseye cat /etc/apt/sources.list
+# podman run -i -d scipod:bullseye
+# podman ps -a
+# podman exec -i -t CONTAINERID /bin/bash
+# podman run -v /:/mnt/dockershare --network host -i -d scipod:bullseye
+########################################
+
+# set version for FROM instruction
+ARG debian_version=bullseye
+
+# use official debian image
+FROM docker.io/library/debian:$debian_version
+
+# set args for build only
+ARG DEBIAN_FRONTEND=noninteractive
+
+# make debian version available further on during build process
+ARG debian_version
+
+# set environment variables that persist for docker run
+ENV LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    TZ=Europe/Berlin
+
+RUN echo \
+"Package: *\n"\
+"Pin: release o=Debian,a="$debian_version"\n"\
+"Pin-Priority: 900\n"\
+"\n"\
+"Package: *\n"\
+"Pin: release o=Debian,a="$debian_version"-backports\n"\
+"Pin-Priority: 400" > /etc/apt/preferences
+
+RUN echo \
+"deb http://debian.ethz.ch/debian/ "$debian_version" main contrib non-free\n"\
+"deb-src http://debian.ethz.ch/debian/ "$debian_version" main contrib non-free\n"\
+"\n"\
+"deb http://security.debian.org/debian-security "$debian_version"-security main contrib non-free\n"\
+"deb-src http://security.debian.org/debian-security "$debian_version"-security main contrib non-free\n"\
+"\n"\
+"deb http://deb.debian.org/debian/ "$debian_version"-backports main contrib non-free\n"\
+"deb-src http://deb.debian.org/debian/ "$debian_version"-backports main contrib non-free" > /etc/apt/sources.list
+
+# create user and apt-install dependencies
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
+  && echo $TZ > /etc/timezone \
+  && apt-get update \
+  && apt-get -y -q install apt-utils apt-transport-https \
+  && apt-get -y -q upgrade \
+  && apt-get -y -q dist-upgrade \
+  && apt-get -y -q install \
+    gosu \
+    htop \
+    screen \
+    vim \
+    emacs \
+    tmux \
+    git \
+    openssl \
+    libx11-dev \
+    libxt-dev \
+    make \
+    gfortran \
+    g++ \
+    gcc \
+    perl \
+    libreadline-dev \
+    alien \
+    libgslcblas0 \
+    libboost-dev \
+    libcurl4-openssl-dev \
+    libssl-dev \
+    libxml2-dev \
+    libomp-dev \
+    libgomp1 \
+    libopenblas-base \
+    libopenblas-dev \
+    libatlas3-base \
+    libatlas-base-dev \
+    libxm4 \
+    mpich \
+    virtualenv \
+    python-dev \
+    python3-dev \
+    python3-virtualenv \
+    python-tk \
+    python3-tk \
+    python3-pyqt5 \
+    python3-qtpy \
+    libgdbm-dev \
+    tk-dev \
+    libsqlite3-dev \
+    libffi-dev \
+    uuid-dev \
+    curl \
+    ffmpeg \
+    dvipng \
+    ghostscript \
+    texlive-science \
+    texlive-fonts-extra \
+    libgl1-mesa-glx \
+    libgl1-mesa-dev \
+    libglu1-mesa-dev \
+    octave \
+    nodejs \
+    npm \
+    wget \
+    csh \
+    libgsl-dev \
+    gzip \
+    libhdf5-dev \
+    libblas-dev \
+    liblapack-dev \
+    libpng-dev \
+    libxaw7-dev \
+    libmotif-dev \
+    libncurses5-dev \
+    rpm \
+    subversion \
+    tar \
+    tcl-dev \
+    libtiff5-dev \
+    unzip \
+    zlib1g-dev \
+    libbz2-dev \
+    intel-mkl
+
+
+# ##############################
+# ##### Python 3 Virtualenv ####
+# ##############################
+ARG py3ver="3.9.10"
+ARG py3sver="3.9"
+RUN mkdir /opt/python && curl "https://www.python.org/ftp/python/${py3ver}/Python-${py3ver}.tar.xz" --output /opt/python/Python-${py3ver}.tar.xz \
+  && tar --no-same-owner --no-same-permissions -xf /opt/python/Python-${py3ver}.tar.xz -C /opt/python/ \
+  && rm /opt/python/Python-${py3ver}.tar.xz \
+  && cd /opt/python/Python-${py3ver}/ \
+  && ./configure --prefix=/opt/python/ --enable-optimizations \
+  && make -j8 \
+  && make altinstall \
+  && virtualenv --python=/opt/python/bin/python${py3sver} /opt/python/venv_python${py3ver} \
+  && ln -s /opt/python/venv_python${py3ver}/bin/activate /opt/python/activatepy3venv \
+  && /bin/bash -c "\
+   source /opt/python/venv_python${py3ver}/bin/activate \
+    && curl -sS https://bootstrap.pypa.io/get-pip.py | python3 \
+    && pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir --upgrade setuptools \
+    && pip install --no-cache-dir --upgrade cython \
+    && pip install --no-cache-dir --upgrade numpy \
+    && pip install --no-cache-dir --upgrade scipy \
+    && pip install --no-cache-dir --upgrade pandas \
+    && pip install --no-cache-dir --upgrade sympy \
+    && pip install --no-cache-dir --upgrade h5py\
+    && pip install --no-cache-dir --upgrade matplotlib \
+    && pip install --no-cache-dir --upgrade pyfftw \
+    && pip install --no-cache-dir --upgrade jupyter \
+    && pip install --no-cache-dir --upgrade jupyterlab \
+    && pip install --no-cache-dir --upgrade jupyterthemes \
+    && pip install --no-cache-dir --upgrade tensorflow \
+    && pip install --no-cache-dir --upgrade tensorflow-gpu \
+    && pip install --no-cache-dir --upgrade deap \
+    && pip install --no-cache-dir --upgrade nose \
+    && pip install --no-cache-dir --upgrade scikit-learn \
+    && pip install --no-cache-dir --upgrade vtk \
+    && pip install --no-cache-dir --upgrade pyepics \
+    && pip install --no-cache-dir --upgrade ipympl \
+    && pip install --no-cache-dir --upgrade pandas_datareader \
+    && pip install --no-cache-dir --upgrade bs4 \
+    && pip install --no-cache-dir --upgrade numba \
+    && pip install --no-cache-dir --upgrade numexpr \
+    && pip install --no-cache-dir --upgrade pillow \
+    && pip install --no-cache-dir --upgrade pymongo \
+    && pip install --no-cache-dir --upgrade ipykernel \
+    && pip install --no-cache-dir --upgrade octave_kernel \
+    && pip install --no-cache-dir --upgrade llvmlite \
+    && pip install --no-cache-dir --upgrade bokeh \
+    && pip install --no-cache-dir --upgrade jupyter_bokeh \
+    && pip install --no-cache-dir --upgrade imageio \
+    && pip install --no-cache-dir --upgrade imageio-ffmpeg \
+    && pip install --no-cache-dir --upgrade lmfit \
+    && pip install --no-cache-dir --upgrade pyqt5 \
+    && pip install --no-cache-dir --upgrade mayavi \
+    && jupyter labextension install @jupyter-widgets/jupyterlab-manager \
+    && jupyter labextension install jupyter-matplotlib \
+    && deactivate"
+
+
+# ##############################
+# ##### Python 2 Virtualenv ####
+# ##############################
+ARG py2ver="2.7.18"
+RUN curl "https://www.python.org/ftp/python/${py2ver}/Python-${py2ver}.tar.xz" --output /opt/python/Python-${py2ver}.tar.xz \
+  && tar --no-same-owner --no-same-permissions -xf /opt/python/Python-${py2ver}.tar.xz -C /opt/python/ \
+  && rm /opt/python/Python-${py2ver}.tar.xz \
+  && cd /opt/python/Python-${py2ver}/ \
+  && ./configure --prefix=/opt/python/ --enable-optimizations --enable-unicode=ucs4 \
+  && make -j8 \
+  && make altinstall \
+  && virtualenv --python=/opt/python/bin/python2.7 /opt/python/venv_python${py2ver} \
+  && /bin/bash -c "\
+  source /opt/python/venv_python${py2ver}/bin/activate \
+    && curl -sS https://bootstrap.pypa.io/pip/2.7/get-pip.py | python2 \
+    && pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir --upgrade setuptools \
+    && pip install --no-cache-dir --upgrade wheel \
+    && pip install --no-cache-dir --upgrade numpy \
+    && pip install --no-cache-dir --upgrade scipy \
+    && pip install --no-cache-dir --upgrade pandas \
+    && pip install --no-cache-dir --upgrade pandas_datareader \
+    && pip install --no-cache-dir --upgrade h5py \
+    && pip install --no-cache-dir --upgrade matplotlib \
+    && pip install --no-cache-dir --upgrade pyfftw \
+    && pip install --no-cache-dir --upgrade deap \
+    && pip install --no-cache-dir --upgrade nose \
+    && pip install --no-cache-dir --upgrade scikit-learn \
+    && pip install --no-cache-dir --upgrade vtk \
+    && pip install --no-cache-dir --upgrade pillow \
+    && pip install --no-cache-dir --upgrade pymongo \
+    && pip install --no-cache-dir --upgrade cython \
+    # && pip install --no-cache-dir --upgrade pyepics \
+    # && pip install --no-cache-dir --upgrade ipympl \
+    # && pip install --no-cache-dir --upgrade bs4 \
+    # && pip install --no-cache-dir --upgrade numba \
+    # && pip install --no-cache-dir --upgrade numexpr \
+    # && pip install --no-cache-dir --upgrade bokeh \
+    # && pip install --no-cache-dir --upgrade imageio \
+    # && pip install --no-cache-dir --upgrade lmfit \
+    # && pip install --no-cache-dir --upgrade mayavi \
+    # && pip install --no-cache-dir --upgrade sympy \
+    # && pip install --no-cache-dir --upgrade tensorflow \
+    && deactivate" \
+  && ln -s /usr/lib/python2.7/dist-packages/PyQt5/ /opt/python/venv_python${py2ver}/lib/python2.7/site-packages/ \
+  && ln -s /usr/lib/python2.7/dist-packages/sip.x86_64-linux-gnu.so /opt/python/venv_python${py2ver}/lib/python2.7/site-packages/
+
+
+# ########################################
+# #### R (https://www.r-project.org/) ####
+# ########################################
+# ARG rver="4.1.2"
+# COPY --chown=root:users packages/r_packages.r /opt/R/
+# RUN /bin/bash -c "mkdir -p /opt/R/Rpackages/ \
+#   && export GPG_TTY='/dev/tty' \
+#   && export R_LIBS='/opt/R/Rpackages/' \
+#   && echo 'deb https://cloud.r-project.org/bin/linux/debian buster-cran35/' >> /etc/apt/sources.list.d/cran.list \
+#   && while true; do apt-key adv --no-tty --keyserver ipv4.pool.sks-keyservers.net --recv-key 'E19F5F87128899B192B1A2C2AD5F960A256A04AF' && break || echo 'Trying again...'; done \
+#   && apt-get -y -q update \
+#   && apt-get install -y -q r-base libunwind8-dev \
+#   && R -f /opt/R/r_packages.r"
+
+
+# ##################################################
+# #### julia (https://julialang.org/downloads/) ####
+# # Version must also be updated in bashrc file !!!!
+# ##################################################
+# ARG jlver="1.6.5"
+# COPY --chown=root:users packages/julia_packages.jl /opt/julia/  
+# RUN /bin/bash -c " source /opt/python/venv_python${py3ver}/bin/activate \
+#   && curl "https://julialang-s3.julialang.org/bin/linux/x64/1.2/julia-${jlver}-linux-x86_64.tar.gz" --output /opt/julia/julia.tar.gz  \
+#   && tar --no-same-owner --no-same-permissions -xf /opt/julia/julia.tar.gz -C /opt/julia/ \
+#   && rm /opt/julia/julia.tar.gz \
+#   && export JULIA_DEPOT_PATH=/opt/julia/julia-${jlver}/local/share/julia:/opt/julia/julia-${jlver}/share/julia \
+#   && export PYTHON="/opt/python/venv_python${py3ver}/bin/python" \
+#   && export JUPYTER="/opt/python/venv_python${py3ver}/bin/jupyter" \
+#   && export JUPYTER_IPYKERNEL="/opt/python/venv_python${py3ver}/share/jupyter" \
+#   && /opt/julia/julia-${jlver}/bin/julia /opt/julia/julia_packages.jl"
+
+
+# ###############################################
+# ### add kernels to virtualenv with jupyter ####
+# ###############################################
+# RUN /bin/bash -c " source /opt/python/venv_python${py3ver}/bin/activate \
+#  && export R_LIBS='/opt/R/Rpackages/'  \
+#  && export JUPYTER_PATH=/opt/python/venv_python${py3ver}/share/jupyter/ \
+#  && /usr/bin/R --silent -e 'IRkernel::installspec(name = \"r\", displayname = \"R ${rver}\", prefix=\"/opt/python/venv_python${py3ver}/\")' \
+#  && /opt/python/venv_python${py2ver}/bin/python -m ipykernel install --prefix=/opt/python/venv_python${py3ver}/ --name python2 --display-name 'Python ${py2ver}' \
+#  && /opt/python/venv_python${py3ver}/bin/python -m ipykernel install --prefix=/opt/python/venv_python${py3ver}/ --name python3 --display-name 'Python ${py3ver}' \
+#  && chmod -R 775 /opt/"
+
+
+# ##################
+# #### dotfiles ####
+# ##################
+# RUN mkdir /root/.jupyter
+# RUN echo "\
+# c.NotebookApp.ip = '127.0.0.1'\n\
+# c.NotebookApp.port = 8888\n\
+# c.NotebookApp.open_browser = False\n\
+# c.NotebookApp.notebook_dir = '/mnt/dockershare/'\n\
+# c.Spawner.args = ['--NotebookApp.iopub_data_rate_limit=100000000']\n\
+# c.KernelSpecManager.whitelist = set(['octave', 'julia', 'r', 'python2', 'python3'])" > /root/.jupyter/jupyter_notebook_config.py
+# COPY dotfiles/sciduck /home/$USER/sciduck
+# COPY dotfiles/bashrc /home/$USER/.bashrc 
+# COPY dotfiles/vimrc /home/$USER/.vimrc
+
+
+# ##################	
+# #### Clean-Up ####
+# ##################
+RUN apt-get clean \
+ &&  rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+
+# #####################	
+# #### Entry-Point ####
+# #####################
+# COPY dotfiles/user-mapping.sh /root/
+# RUN chmod +x /root/user-mapping.sh
+# ENTRYPOINT ["/root/user-mapping.sh"]
